@@ -8,6 +8,7 @@ WIDTH = screen.get_width()
 HEIGHT = screen.get_height()
 PLAYER_SIZE = 60
 BACKGROUND = (0, 0, 0)
+TILE_SIZE = 64
 vec = pygame.math.Vector2
 image = pygame.image.load('assets/cube.png')
 w, h = image.get_size()
@@ -19,7 +20,21 @@ class Sprite(pygame.sprite.Sprite):
         self.image = pygame.image.load(image)
         self.rect = self.image.get_rect()
 
-        self.rect.bottomleft = [0, start_y]
+        self.rect.bottomleft = [start_x, start_y]
+
+class Obstacle(Sprite):
+    def __init__(self, file, start_x, start_y):
+        super().__init__(file, start_x, start_y)
+
+    def draw(self):
+        screen.blit(self.image, self.rect)
+
+    def move(self, x, y):
+        self.rect.move_ip([x, y])
+
+    def update(self):
+        hsp = -10  # horizontal speed
+        self.move(hsp, 0)
 
 
 class Player(Sprite):
@@ -117,6 +132,13 @@ def main():
     background = Background()
     ground = Ground(0, HEIGHT + 256/2)
     player = Player(0, ground.rect.top)
+    i = 10 # x coord
+    j = 0 # y coord
+
+    block = Obstacle('assets/block.png', TILE_SIZE * i, ground.rect.top - TILE_SIZE * j)
+    j += 1
+    spike = Obstacle('assets/spike.png', TILE_SIZE * i, ground.rect.top - TILE_SIZE * j)
+
 
     platforms = pygame.sprite.Group()
     platforms.add(ground)
@@ -137,6 +159,14 @@ def main():
         background.redraw_background()
         ground.draw()
         player.update(platforms)
+
+        spike.draw()
+        block.draw()
+
+        spike.update()
+        block.update()
+
+        #block2.draw()
 
         if player.vsp != 0.0:
             blitRotate(player, pos, (w / 2, h / 2), angle)
