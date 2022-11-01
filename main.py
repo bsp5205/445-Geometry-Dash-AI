@@ -2,6 +2,7 @@ import pygame
 import re
 from pygame.locals import *
 import numpy as np
+import math
 
 screen = pygame.display.set_mode((0, 0), pygame.RESIZABLE)
 WIDTH = screen.get_width()
@@ -11,13 +12,15 @@ BACKGROUND = (0, 0, 0)
 TILE_SIZE = 64
 vec = pygame.math.Vector2
 image = pygame.image.load('assets/cube.png')
+ship_image = pygame.image.load('assets/ship0.png')
 w, h = image.get_size()
+sw, sh = ship_image.get_size()
 
 class Sprite(pygame.sprite.Sprite):
-    def __init__(self, image, start_x, start_y):
+    def __init__(self, image2, start_x, start_y):
         super().__init__()
 
-        self.image = pygame.image.load(image)
+        self.image = pygame.image.load(image2)
         self.rect = self.image.get_rect()
 
         self.rect.bottomleft = [start_x, start_y]
@@ -38,8 +41,8 @@ class Obstacle(Sprite):
 
 
 class Player(Sprite):
-    def __init__(self, start_x, start_y):
-        super().__init__("assets/cube.png", start_x, start_y)
+    def __init__(self, starting_image, start_x, start_y):
+        super().__init__(starting_image, start_x, start_y)
         self.speed = 4
         self.jumpspeed = 22
         self.gravity = 1.5
@@ -47,10 +50,21 @@ class Player(Sprite):
         self.jumping = 0
         self.rotated_rectangle = self.rect
         self.rotated_image = self.image
+
         self.angle = 0
+        self.is_cube = 0
+        self.alive = 1
+        self.flight = 0.5
+
+        self.ship = ship_image
+        self.ship_rotated_rectangle = self.rect
+        self.ship_rotated_image = self.image
 
     def draw(self):
         screen.blit(self.image, self.rect)
+
+    def draw_ship_rotated(self):
+        screen.blit(self.ship_rotated_image, self.rotated_rectangle)
 
     def draw_rotate(self):
         screen.blit(self.rotated_image, self.rotated_rectangle)
@@ -59,7 +73,7 @@ class Player(Sprite):
         self.rect.move_ip([x, y])
 
     def update(self, ground):
-        hsp = 0  # horizontal speed
+        hsp = 10   # horizontal speed
         on_ground = pygame.sprite.spritecollideany(self, ground)
 
         # check keys
@@ -69,19 +83,34 @@ class Player(Sprite):
         # elif key[pygame.K_RIGHT]:
         #     hsp = self.speed
 
-        if key[pygame.K_SPACE] and on_ground:
-            self.jumping = 1
-            self.vsp = -self.jumpspeed
+        if self.is_cube:
+            if key[pygame.K_SPACE] and on_ground:
+                self.jumping = 1
+                self.vsp = -self.jumpspeed
 
-        if self.vsp < 10 and not on_ground:  # 9.8: rounded up
-            self.vsp += self.gravity
+            if self.vsp < 10 and not on_ground:  # 9.8: rounded up
+                self.vsp += self.gravity
 
-        if self.vsp > 0 and on_ground:
-            self.jumping = 0
-            self.vsp = 0
+            if self.vsp > 0 and on_ground:
+                self.jumping = 0
+                self.vsp = 0
+        else:
+            angle_adjustment_speed = 3.0
+            if key[pygame.K_SPACE]:
+                ship_angle = 0
+                self.vsp -= self.flight
+            elif not on_ground and not key[pygame.K_SPACE] and self.vsp < 10:
+                self.angle += angle_adjustment_speed
+                self.vsp += self.flight
+            elif on_ground:
+                self.vsp = 0
 
-        # movement
-        self.move(hsp, self.vsp)
+        if self.alive:
+            self.move(hsp, self.vsp)
+
+
+
+
 
 class Ground(Sprite):
     def __init__(self, start_x, start_y):
@@ -125,26 +154,89 @@ def blitRotate(player, pos, originPos, angle):
     player.rotated_image = rotated_image
     player.rotated_rectangle = rotated_image_rect
     # draw rectangle around the image
-    # pygame.draw.rect(screen, (255, 0, 0), (*rotated_image_rect.topleft, *rotated_image.get_size()), 2)
+    pygame.draw.rect(screen, (255, 0, 0), (*rotated_image_rect.topleft, *rotated_image.get_size()), 2)
+
+def blitRotateShip(player, pos, originPos, angle):
+    # offset from pivot to center
+    image_rect = ship_image.get_rect(topleft=(pos[0] - originPos[0], pos[1] - originPos[1]))
+    offset_center_to_pivot = pygame.math.Vector2(pos) - image_rect.center
+
+    # rotated offset from pivot to center
+    rotated_offset = offset_center_to_pivot.rotate(-angle)
+
+    # rotated image center
+    rotated_image_center = (pos[0] - rotated_offset.x, pos[1] - rotated_offset.y)
+
+    # get a rotated image
+    rotated_image = pygame.transform.rotate(ship_image, angle)
+    rotated_image_rect = rotated_image.get_rect(center=rotated_image_center)
+
+    # rotate and blit the image
+    #screen.blit(rotated_image, rotated_image_rect)
+    player.ship_rotated_image = rotated_image
+    player.ship_rotated_rectangle = rotated_image_rect
+    # draw rectangle around the image
+    pygame.draw.rect(screen, (255, 0, 0), (*rotated_image_rect.topleft, *rotated_image.get_size()), 2)
+
+def load_map_optimized(map_num):
+    level_file = open('maps/' + str(map_num) + '.save', 'r')
+    prop_file = open('maps/' + str(map_num) + '.prop', 'r')
+
+    width = int(re.search(r'\d+', prop_file.readline()).group())
+    height = int(re.search(r'\d+', prop_file.readline()).group())
+    hue = int(re.search(r'\d+', prop_file.readline()).group())
+
+    my_map = []
+    count = 0
+    flag = 0
+    for w in range(height): # optimized method of reading in map files
+        col = []
+        for h in range(width):
+            temp = int(level_file.readline())
+            if temp != '  ':
+                flag = 1
+            col.append(temp)
+
+        if flag == 1:
+            my_map.append(col)
+            count = count + len(col)
+            temp_count = 0
+            flag = 0
+
+    # for x in my_map:
+    #     print(*x, sep='')
+
+    return my_map
 
 def main():
+
+    temp_list = []
+    continue_loading = 1
+    current_pos = 0
+    ending_pos = 0
+    my_map = load_map_optimized(0)
+    count = 0
+
     pygame.init()
     background = Background()
     ground = Ground(0, HEIGHT + 256/2)
-    player = Player(0, ground.rect.top)
-    i = 10 # x coord
-    j = 0 # y coord
-
-    block = Obstacle('assets/block.png', TILE_SIZE * i, ground.rect.top - TILE_SIZE * j)
-    j += 1
-    spike = Obstacle('assets/spike.png', TILE_SIZE * i, ground.rect.top - TILE_SIZE * j)
-
+    player = Player('assets/cube.png', 0, ground.rect.top)
 
     platforms = pygame.sprite.Group()
     platforms.add(ground)
 
+
     clock = pygame.time.Clock()
     angle = 0
+    ship_angle = 0
+    ship_angle_new = 0
+    ship_angle_old = 0
+    ship_angle_change = 0
+
+    vertical_velocity_new = 0
+    vertical_velocity_old = 0
+    angle_adjust_speed = 1
+
     all_sprites = pygame.sprite.Group()
     all_sprites.add(player)
     all_sprites.add(ground)
@@ -154,30 +246,68 @@ def main():
         background.bgX -= 1.3  # Move both background images back
         background.bgX2 -= 1.3
 
-        pos = (player.rect.bottomleft[0] + 30, player.rect.bottomleft[1] - 30)
+        pos = ()
 
         background.redraw_background()
         ground.draw()
+
         player.update(platforms)
 
-        spike.draw()
-        block.draw()
+        if player.is_cube:
+            pos = (player.rect.bottomleft[0] + 30, player.rect.bottomleft[1] - 30)
+            player.image = pygame.image.load('assets/cube.png')
+        else:
+            pos = (player.rect.bottomleft[0] + 37, player.rect.bottomleft[1] - 37)
 
-        spike.update()
-        block.update()
+        vertical_velocity_new = player.vsp
+        vertical_velocity_change = vertical_velocity_new - vertical_velocity_old
+        print(vertical_velocity_change)
 
-        #block2.draw()
+        ship_angle_new = ship_angle
+        ship_angle_change = ship_angle_new - ship_angle_old
 
-        if player.vsp != 0.0:
+        on_ground = pygame.sprite.spritecollideany(player, platforms)
+        if player.vsp != 0.0 and player.is_cube:
             blitRotate(player, pos, (w / 2, h / 2), angle)
             angle -= 10
             angle = angle % 360
-            # print(angle)
             player.draw_rotate()
-        else:
-            # print(player.angle)
+        elif player.vsp == 0 and player.is_cube:
             blitRotate(player, pos, (w / 2, h / 2), player.angle)
             player.draw_rotate()
+        elif player.vsp > 0.0 and not player.is_cube:  # player moving down
+            if ship_angle < -30:
+                ship_angle = -30
+            if vertical_velocity_change >= 0:
+                ship_angle -= angle_adjust_speed
+            else:
+                ship_angle += angle_adjust_speed
+            blitRotateShip(player, pos, (sw/2, sh/2), ship_angle)
+            player.draw_ship_rotated()
+        elif player.vsp < 0.0 and not player.is_cube: # player moving up
+            if ship_angle > 30:
+                ship_angle = 30
+            if vertical_velocity_change <= 0:
+                ship_angle += angle_adjust_speed
+            else:
+                ship_angle -= angle_adjust_speed
+            blitRotateShip(player, pos, (sw / 2, sh / 2), ship_angle)
+            player.draw_ship_rotated()
+        elif not player.is_cube and on_ground:
+            ship_angle = 0
+            blitRotateShip(player, pos, (sw / 2, sh / 2), ship_angle)
+            player.draw_ship_rotated()
+
+        vertical_velocity_old = player.vsp
+        ship_angle_old = ship_angle
+
+        # render
+        for i in range(len(my_map)):
+            for j in range(int(WIDTH/TILE_SIZE)):
+                obj = my_map[i][j]
+                print(obj)
+
+
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
