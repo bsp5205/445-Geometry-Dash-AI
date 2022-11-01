@@ -72,10 +72,10 @@ class Player(Sprite):
     def move(self, x, y):
         self.rect.move_ip([x, y])
 
-    def update(self, ground):
-        hsp = 10   # horizontal speed
+    def update(self, ground, ceiling):
+        hsp = 0   # horizontal speed
         on_ground = pygame.sprite.spritecollideany(self, ground)
-
+        on_ceiling = pygame.sprite.spritecollideany(self, ceiling)
         # check keys
         key = pygame.key.get_pressed()
         # if key[pygame.K_LEFT]:
@@ -105,12 +105,13 @@ class Player(Sprite):
             elif on_ground:
                 self.vsp = 0
 
+            if self.vsp < 0 and on_ceiling:
+                print('ON CEILING')
+                self.jumping = 0
+                self.vsp = 0
+
         if self.alive:
             self.move(hsp, self.vsp)
-
-
-
-
 
 class Ground(Sprite):
     def __init__(self, start_x, start_y):
@@ -189,11 +190,11 @@ def load_map_optimized(map_num):
     my_map = []
     count = 0
     flag = 0
-    for w in range(height): # optimized method of reading in map files
+    for w_map in range(height): # optimized method of reading in map files
         col = []
-        for h in range(width):
+        for h_map in range(width):
             temp = int(level_file.readline())
-            if temp != '  ':
+            if temp != 0:
                 flag = 1
             col.append(temp)
 
@@ -201,7 +202,7 @@ def load_map_optimized(map_num):
             my_map.append(col)
             count = count + len(col)
             temp_count = 0
-            flag = 0
+            # flag = 0
 
     # for x in my_map:
     #     print(*x, sep='')
@@ -214,7 +215,7 @@ def main():
     continue_loading = 1
     current_pos = 0
     ending_pos = 0
-    my_map = load_map_optimized(0)
+    #my_map = load_map_optimized(0)
     count = 0
 
     pygame.init()
@@ -222,9 +223,12 @@ def main():
     ground = Ground(0, HEIGHT + 256/2)
     player = Player('assets/cube.png', 0, ground.rect.top)
 
+    ceiling = Ground(0, 0)
+
     platforms = pygame.sprite.Group()
     platforms.add(ground)
-
+    top_platforms = pygame.sprite.Group()
+    top_platforms.add(ceiling)
 
     clock = pygame.time.Clock()
     angle = 0
@@ -242,31 +246,31 @@ def main():
     all_sprites.add(ground)
     running = True
     while running:
-        clock.tick(60)
+        clock.tick(60) #framerate
         background.bgX -= 1.3  # Move both background images back
         background.bgX2 -= 1.3
 
-        pos = ()
+        pos = () # ignore this
 
         background.redraw_background()
         ground.draw()
-
-        player.update(platforms)
+        ceiling.draw()
+        player.update(platforms, top_platforms)
 
         if player.is_cube:
-            pos = (player.rect.bottomleft[0] + 30, player.rect.bottomleft[1] - 30)
+            pos = (player.rect.bottomleft[0] + player.rect.width/2, player.rect.bottomleft[1] - player.rect.height/2)
             player.image = pygame.image.load('assets/cube.png')
         else:
-            pos = (player.rect.bottomleft[0] + 37, player.rect.bottomleft[1] - 37)
+            pos = (player.rect.bottomleft[0] + player.rect.width/2, player.rect.bottomleft[1] - player.rect.height/2)
 
         vertical_velocity_new = player.vsp
         vertical_velocity_change = vertical_velocity_new - vertical_velocity_old
-        print(vertical_velocity_change)
 
         ship_angle_new = ship_angle
         ship_angle_change = ship_angle_new - ship_angle_old
 
         on_ground = pygame.sprite.spritecollideany(player, platforms)
+        on_ceiling = pygame.sprite.spritecollideany(player, top_platforms)
         if player.vsp != 0.0 and player.is_cube:
             blitRotate(player, pos, (w / 2, h / 2), angle)
             angle -= 10
@@ -293,7 +297,7 @@ def main():
                 ship_angle -= angle_adjust_speed
             blitRotateShip(player, pos, (sw / 2, sh / 2), ship_angle)
             player.draw_ship_rotated()
-        elif not player.is_cube and on_ground:
+        elif not player.is_cube and on_ground or on_ceiling:
             ship_angle = 0
             blitRotateShip(player, pos, (sw / 2, sh / 2), ship_angle)
             player.draw_ship_rotated()
@@ -302,12 +306,6 @@ def main():
         ship_angle_old = ship_angle
 
         # render
-        for i in range(len(my_map)):
-            for j in range(int(WIDTH/TILE_SIZE)):
-                obj = my_map[i][j]
-                print(obj)
-
-
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
