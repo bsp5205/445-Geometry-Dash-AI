@@ -13,6 +13,10 @@ TILE_SIZE = 64
 vec = pygame.math.Vector2
 image = pygame.image.load('assets/cube.png')
 ship_image = pygame.image.load('assets/ship0.png')
+cube_portal_1 = pygame.image.load('assets/portal0.png')
+cube_portal_2 = pygame.image.load('assets/portal1.png')
+ship_portal_1 = pygame.image.load('assets/portal2.png')
+ship_portal_2 = pygame.image.load('assets/portal3.png')
 w, h = image.get_size()
 sw, sh = ship_image.get_size()
 
@@ -39,11 +43,24 @@ class Obstacle(Sprite):
         hsp = -10  # horizontal speed
         self.move(hsp, 0)
 
+class Portal(Sprite):
+    def __init__(self, file, start_x, start_y):
+        super().__init__(file, start_x, start_y)
+
+    def draw(self):
+        screen.blit(self.image, self.rect)
+
+    def move(self, x, y):
+        self.rect.move_ip([x, y])
+
+    def update(self):
+        hsp = -10  # horizontal speed
+        self.move(hsp, 0)
 
 class Player(Sprite):
     def __init__(self, starting_image, start_x, start_y):
         super().__init__(starting_image, start_x, start_y)
-        self.speed = 4
+        self.speed = 4 # Randomly chosen to get physics as close as possible
         self.jumpspeed = 22
         self.gravity = 1.5
         self.vsp = 0  # vertical speed
@@ -52,7 +69,7 @@ class Player(Sprite):
         self.rotated_image = self.image
 
         self.angle = 0
-        self.is_cube = 0
+        self.game_mode = "cube"
         self.alive = 1
         self.flight = 0.5
 
@@ -64,7 +81,7 @@ class Player(Sprite):
         screen.blit(self.image, self.rect)
 
     def draw_ship_rotated(self):
-        screen.blit(self.ship_rotated_image, self.rotated_rectangle)
+        screen.blit(self.ship_rotated_image, self.ship_rotated_rectangle)
 
     def draw_rotate(self):
         screen.blit(self.rotated_image, self.rotated_rectangle)
@@ -72,30 +89,17 @@ class Player(Sprite):
     def move(self, x, y):
         self.rect.move_ip([x, y])
 
-    def update(self, ground, ceiling):
+    def update(self, ground, ceiling, portals):
         hsp = 0   # horizontal speed
         on_ground = pygame.sprite.spritecollideany(self, ground)
         on_ceiling = pygame.sprite.spritecollideany(self, ceiling)
+        in_portal = pygame.sprite.spritecollideany(self, portals)
+
         # check keys
         key = pygame.key.get_pressed()
-        # if key[pygame.K_LEFT]:
-        #     hsp = -self.speed
-        # elif key[pygame.K_RIGHT]:
-        #     hsp = self.speed
 
-        if self.is_cube:
-            if key[pygame.K_SPACE] and on_ground:
-                self.jumping = 1
-                self.vsp = -self.jumpspeed
-
-            if self.vsp < 10 and not on_ground:  # 9.8: rounded up
-                self.vsp += self.gravity
-
-            if self.vsp > 0 and on_ground:
-                self.jumping = 0
-                self.vsp = 0
-        else:
-            angle_adjustment_speed = 3.0
+        if self.game_mode == "ship": # ship
+            angle_adjustment_speed = 3.0  # I stole this value
             if key[pygame.K_SPACE]:
                 ship_angle = 0
                 self.vsp -= self.flight
@@ -106,7 +110,18 @@ class Player(Sprite):
                 self.vsp = 0
 
             if self.vsp < 0 and on_ceiling:
-                print('ON CEILING')
+                self.jumping = 0
+                self.vsp = 0
+
+        elif self.game_mode == "cube": # cube
+            if key[pygame.K_SPACE] and on_ground:
+                self.jumping = 1
+                self.vsp = -self.jumpspeed
+
+            if self.vsp < 10 and not on_ground:  # 9.8: rounded up
+                self.vsp += self.gravity
+
+            if self.vsp > 0 and on_ground:
                 self.jumping = 0
                 self.vsp = 0
 
@@ -221,7 +236,7 @@ def main():
     pygame.init()
     background = Background()
     ground = Ground(0, HEIGHT + 256/2)
-    player = Player('assets/cube.png', 0, ground.rect.top)
+    player = Player('assets/cube.png', screen.get_width()/3, ground.rect.top)
 
     ceiling = Ground(0, 0)
 
@@ -229,6 +244,14 @@ def main():
     platforms.add(ground)
     top_platforms = pygame.sprite.Group()
     top_platforms.add(ceiling)
+
+    ship_portal_group = pygame.sprite.Group()
+    cube_portal_group = pygame.sprite.Group()
+
+    ship_portal = Portal('assets/portal2.png', 1000, HEIGHT - 100)
+    cube_portal = Portal('assets/portal0.png', 2000, HEIGHT - 100)
+    ship_portal_group.add(ship_portal)
+    cube_portal_group.add(cube_portal)
 
     clock = pygame.time.Clock()
     angle = 0
@@ -250,45 +273,55 @@ def main():
         background.bgX -= 1.3  # Move both background images back
         background.bgX2 -= 1.3
 
-        pos = () # ignore this
-
         background.redraw_background()
         ground.draw()
         ceiling.draw()
-        player.update(platforms, top_platforms)
+        ship_portal.draw()
+        ship_portal.update()
+        cube_portal.draw()
+        cube_portal.update()
 
-        if player.is_cube:
-            pos = (player.rect.bottomleft[0] + player.rect.width/2, player.rect.bottomleft[1] - player.rect.height/2)
+        player.update(platforms, top_platforms, ship_portal_group)
+        in_ship_portal = pygame.sprite.spritecollideany(player, ship_portal_group)
+        in_cube_portal = pygame.sprite.spritecollideany(player, cube_portal_group)
+
+        pos = (player.rect.bottomleft[0] + player.rect.width / 2, player.rect.bottomleft[1] - player.rect.height / 2)
+        if player.game_mode == "ship":
+            if in_cube_portal:
+                print('game mode is ship and in cube portal')
+                player.game_mode = "cube"
+                ship_portal_group.remove(ship_portal)
+        elif player.game_mode == "cube":
             player.image = pygame.image.load('assets/cube.png')
-        else:
-            pos = (player.rect.bottomleft[0] + player.rect.width/2, player.rect.bottomleft[1] - player.rect.height/2)
+            if in_ship_portal:
+                print('game mode is cube and in ship portal')
+                player.game_mode = "ship"
+                ship_portal_group.remove(cube_portal)
 
         vertical_velocity_new = player.vsp
         vertical_velocity_change = vertical_velocity_new - vertical_velocity_old
 
-        ship_angle_new = ship_angle
-        ship_angle_change = ship_angle_new - ship_angle_old
-
         on_ground = pygame.sprite.spritecollideany(player, platforms)
         on_ceiling = pygame.sprite.spritecollideany(player, top_platforms)
-        if player.vsp != 0.0 and player.is_cube:
+
+        if player.game_mode == "cube" and player.vsp != 0.0:
             blitRotate(player, pos, (w / 2, h / 2), angle)
             angle -= 10
             angle = angle % 360
             player.draw_rotate()
-        elif player.vsp == 0 and player.is_cube:
-            blitRotate(player, pos, (w / 2, h / 2), player.angle)
+        elif player.game_mode == "cube" and player.vsp == 0:
+            blitRotate(player, pos, (w / 2, h / 2), 0)
             player.draw_rotate()
-        elif player.vsp > 0.0 and not player.is_cube:  # player moving down
+        elif player.game_mode == "ship" and player.vsp >= 0.0:
             if ship_angle < -30:
                 ship_angle = -30
             if vertical_velocity_change >= 0:
                 ship_angle -= angle_adjust_speed
             else:
                 ship_angle += angle_adjust_speed
-            blitRotateShip(player, pos, (sw/2, sh/2), ship_angle)
+            blitRotateShip(player, pos, (sw / 2, sh / 2), ship_angle)
             player.draw_ship_rotated()
-        elif player.vsp < 0.0 and not player.is_cube: # player moving up
+        elif player.game_mode == "ship" and player.vsp < 0.0:
             if ship_angle > 30:
                 ship_angle = 30
             if vertical_velocity_change <= 0:
@@ -297,16 +330,14 @@ def main():
                 ship_angle -= angle_adjust_speed
             blitRotateShip(player, pos, (sw / 2, sh / 2), ship_angle)
             player.draw_ship_rotated()
-        elif not player.is_cube and on_ground or on_ceiling:
+        if player.game_mode == "ship" and on_ground or on_ceiling:
             ship_angle = 0
             blitRotateShip(player, pos, (sw / 2, sh / 2), ship_angle)
             player.draw_ship_rotated()
 
         vertical_velocity_old = player.vsp
-        ship_angle_old = ship_angle
 
         # render
-
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
