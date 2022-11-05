@@ -13,13 +13,14 @@ TILE_SIZE = 64
 vec = pygame.math.Vector2
 image = pygame.image.load('assets/cube.png')
 ship_image = pygame.image.load('assets/ship0.png')
+wave_image = pygame.image.load('assets/wave.png')
 cube_portal_1 = pygame.image.load('assets/portal0.png')
 cube_portal_2 = pygame.image.load('assets/portal1.png')
 ship_portal_1 = pygame.image.load('assets/portal2.png')
 ship_portal_2 = pygame.image.load('assets/portal3.png')
 w, h = image.get_size()
 sw, sh = ship_image.get_size()
-
+ww, wh = wave_image.get_size()
 class Sprite(pygame.sprite.Sprite):
     def __init__(self, image2, start_x, start_y):
         super().__init__()
@@ -64,12 +65,11 @@ class Player(Sprite):
         self.jumpspeed = 22
         self.gravity = 1.5
         self.vsp = 0  # vertical speed
-        self.jumping = 0
         self.rotated_rectangle = self.rect
         self.rotated_image = self.image
 
         self.angle = 0
-        self.game_mode = "cube"
+        self.game_mode = "wave"
         self.alive = 1
         self.flight = 0.5
 
@@ -101,7 +101,6 @@ class Player(Sprite):
         if self.game_mode == "ship": # ship
             angle_adjustment_speed = 3.0  # I stole this value
             if key[pygame.K_SPACE]:
-                ship_angle = 0
                 self.vsp -= self.flight
             elif not on_ground and not key[pygame.K_SPACE] and self.vsp < 10:
                 self.angle += angle_adjustment_speed
@@ -110,20 +109,29 @@ class Player(Sprite):
                 self.vsp = 0
 
             if self.vsp < 0 and on_ceiling:
-                self.jumping = 0
                 self.vsp = 0
 
         elif self.game_mode == "cube": # cube
             if key[pygame.K_SPACE] and on_ground:
-                self.jumping = 1
                 self.vsp = -self.jumpspeed
 
             if self.vsp < 10 and not on_ground:  # 9.8: rounded up
                 self.vsp += self.gravity
 
             if self.vsp > 0 and on_ground:
-                self.jumping = 0
                 self.vsp = 0
+        elif self.game_mode == "wave":
+            if key[pygame.K_SPACE]:
+                self.vsp = -10
+            elif not on_ground and key[pygame.K_SPACE]:
+                self.vsp = -10
+            elif not on_ground and not key[pygame.K_SPACE]:
+                self.vsp = 10
+            if self.vsp > 0 and on_ground:
+                self.vsp = 0
+            if self.vsp < 0 and on_ceiling:
+                self.vsp = 0
+
 
         if self.alive:
             self.move(hsp, self.vsp)
@@ -166,7 +174,7 @@ def blitRotate(player, pos, originPos, angle):
     rotated_image_rect = rotated_image.get_rect(center=rotated_image_center)
 
     # rotate and blit the image
-    #screen.blit(rotated_image, rotated_image_rect)
+    # screen.blit(rotated_image, rotated_image_rect)
     player.rotated_image = rotated_image
     player.rotated_rectangle = rotated_image_rect
     # draw rectangle around the image
@@ -183,12 +191,17 @@ def blitRotateShip(player, pos, originPos, angle):
     # rotated image center
     rotated_image_center = (pos[0] - rotated_offset.x, pos[1] - rotated_offset.y)
 
-    # get a rotated image
-    rotated_image = pygame.transform.rotate(ship_image, angle)
-    rotated_image_rect = rotated_image.get_rect(center=rotated_image_center)
+    if player.game_mode == "ship":
+        # get a rotated image
+        rotated_image = pygame.transform.rotate(ship_image, angle)
+        rotated_image_rect = rotated_image.get_rect(center=rotated_image_center)
+    else:
+        # get a rotated image
+        rotated_image = pygame.transform.rotate(wave_image, angle)
+        rotated_image_rect = rotated_image.get_rect(center=rotated_image_center)
 
     # rotate and blit the image
-    #screen.blit(rotated_image, rotated_image_rect)
+    # screen.blit(rotated_image, rotated_image_rect)
     player.ship_rotated_image = rotated_image
     player.ship_rotated_rectangle = rotated_image_rect
     # draw rectangle around the image
@@ -285,18 +298,24 @@ def main():
         in_ship_portal = pygame.sprite.spritecollideany(player, ship_portal_group)
         in_cube_portal = pygame.sprite.spritecollideany(player, cube_portal_group)
 
-        pos = (player.rect.bottomleft[0] + player.rect.width / 2, player.rect.bottomleft[1] - player.rect.height / 2)
         if player.game_mode == "ship":
+            player.image = ship_image
             if in_cube_portal:
                 print('game mode is ship and in cube portal')
-                player.game_mode = "cube"
+                # player.game_mode = "cube"
                 ship_portal_group.remove(ship_portal)
         elif player.game_mode == "cube":
+            player.image = ship_image
             player.image = pygame.image.load('assets/cube.png')
             if in_ship_portal:
                 print('game mode is cube and in ship portal')
-                player.game_mode = "ship"
+                # player.game_mode = "ship"
                 ship_portal_group.remove(cube_portal)
+        elif player.game_mode == "wave":
+            player.image = wave_image
+            sw, sh = wave_image.get_size()
+
+        pos = (player.rect.bottomleft[0] + player.rect.width / 2, player.rect.bottomleft[1] - player.rect.height / 2)
 
         vertical_velocity_new = player.vsp
         vertical_velocity_change = vertical_velocity_new - vertical_velocity_old
@@ -330,7 +349,16 @@ def main():
                 ship_angle -= angle_adjust_speed
             blitRotateShip(player, pos, (sw / 2, sh / 2), ship_angle)
             player.draw_ship_rotated()
-        if player.game_mode == "ship" and on_ground or on_ceiling:
+        elif player.game_mode == "wave" and player.vsp > 0.0:
+            blitRotateShip(player, pos, (w / 2, h / 2), -45)
+            player.draw_ship_rotated()
+        elif player.game_mode == "wave" and player.vsp < 0.0:
+            blitRotateShip(player, pos, (ww / 2, wh / 2), 45)
+            player.draw_ship_rotated()
+        elif player.game_mode == "wave" and player.vsp == 0.0:
+            blitRotateShip(player, pos, (ww / 2, wh / 2), 0)
+            player.draw_ship_rotated()
+        if player.game_mode == "ship" or player.game_mode == "wave" and on_ground or on_ceiling:
             ship_angle = 0
             blitRotateShip(player, pos, (sw / 2, sh / 2), ship_angle)
             player.draw_ship_rotated()
