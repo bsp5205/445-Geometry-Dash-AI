@@ -21,6 +21,7 @@ ship_portal_2 = pygame.image.load('assets/portal3.png')
 w, h = image.get_size()
 sw, sh = ship_image.get_size()
 ww, wh = wave_image.get_size()
+level_speed = 10
 class Sprite(pygame.sprite.Sprite):
     def __init__(self, image2, start_x, start_y):
         super().__init__()
@@ -41,7 +42,7 @@ class Obstacle(Sprite):
         self.rect.move_ip([x, y])
 
     def update(self):
-        hsp = -10  # horizontal speed
+        hsp = -level_speed  # horizontal speed
         self.move(hsp, 0)
 
 class Portal(Sprite):
@@ -55,7 +56,7 @@ class Portal(Sprite):
         self.rect.move_ip([x, y])
 
     def update(self):
-        hsp = -10  # horizontal speed
+        hsp = -level_speed  # horizontal speed
         self.move(hsp, 0)
 
 class Player(Sprite):
@@ -69,7 +70,7 @@ class Player(Sprite):
         self.rotated_image = self.image
 
         self.angle = 0
-        self.game_mode = "wave"
+        self.game_mode = "cube"
         self.alive = 1
         self.flight = 0.5
 
@@ -107,23 +108,17 @@ class Player(Sprite):
                 self.vsp += self.flight
             elif on_ground:
                 self.vsp = 0
-
             if self.vsp < 0 and on_ceiling:
                 self.vsp = 0
-
         elif self.game_mode == "cube": # cube
             if key[pygame.K_SPACE] and on_ground:
                 self.vsp = -self.jumpspeed
-
             if self.vsp < 10 and not on_ground:  # 9.8: rounded up
                 self.vsp += self.gravity
-
             if self.vsp > 0 and on_ground:
                 self.vsp = 0
         elif self.game_mode == "wave":
             if key[pygame.K_SPACE]:
-                self.vsp = -10
-            elif not on_ground and key[pygame.K_SPACE]:
                 self.vsp = -10
             elif not on_ground and not key[pygame.K_SPACE]:
                 self.vsp = 10
@@ -132,6 +127,8 @@ class Player(Sprite):
             if self.vsp < 0 and on_ceiling:
                 self.vsp = 0
 
+        else:
+            level_speed = 10
 
         if self.alive:
             self.move(hsp, self.vsp)
@@ -289,10 +286,10 @@ def main():
         background.redraw_background()
         ground.draw()
         ceiling.draw()
-        ship_portal.draw()
-        ship_portal.update()
-        cube_portal.draw()
-        cube_portal.update()
+        #ship_portal.draw()
+        #ship_portal.update()
+        #cube_portal.draw()
+        #cube_portal.update()
 
         player.update(platforms, top_platforms, ship_portal_group)
         in_ship_portal = pygame.sprite.spritecollideany(player, ship_portal_group)
@@ -305,7 +302,7 @@ def main():
                 # player.game_mode = "cube"
                 ship_portal_group.remove(ship_portal)
         elif player.game_mode == "cube":
-            player.image = ship_image
+            player.image = image
             player.image = pygame.image.load('assets/cube.png')
             if in_ship_portal:
                 print('game mode is cube and in ship portal')
@@ -358,7 +355,7 @@ def main():
         elif player.game_mode == "wave" and player.vsp == 0.0:
             blitRotateShip(player, pos, (ww / 2, wh / 2), 0)
             player.draw_ship_rotated()
-        if player.game_mode == "ship" or player.game_mode == "wave" and on_ground or on_ceiling:
+        if (player.game_mode == "ship" or player.game_mode == "wave") and (on_ground or on_ceiling):
             ship_angle = 0
             blitRotateShip(player, pos, (sw / 2, sh / 2), ship_angle)
             player.draw_ship_rotated()
