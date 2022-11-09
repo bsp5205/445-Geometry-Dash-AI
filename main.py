@@ -167,11 +167,27 @@ class Map:
     def __init__(self, game_map):
         self.game_map = game_map
 
-        self.spike_img = pygame.surface.Surface((TILE_SIZE, TILE_SIZE))
-        self.spike_img.fill((128, 0, 0))
+        # self.spike_img = pygame.surface.Surface((TILE_SIZE, TILE_SIZE))
+        # self.spike_img.fill((128, 0, 0))
+        self.spike_img = pygame.image.load('assets/spike.png')
+        self.spike_img = pygame.transform.scale(self.spike_img, (TILE_SIZE, TILE_SIZE))
 
-        self.block_img = pygame.surface.Surface((TILE_SIZE, TILE_SIZE))
-        self.block_img.fill((0, 0, 0))
+        # self.block_img = pygame.surface.Surface((TILE_SIZE, TILE_SIZE))
+        # self.block_img.fill((0, 0, 0))
+        self.block_img = pygame.image.load('assets/block.png')
+        self.block_img = pygame.transform.scale(self.block_img, (TILE_SIZE, TILE_SIZE))
+
+        self.groundSpikes_img = pygame.image.load('assets/groundSpikes.png')
+        self.groundSpikes_img = pygame.transform.scale(self.groundSpikes_img, (TILE_SIZE, TILE_SIZE))
+
+        self.highHalfBlock_img = pygame.image.load('assets/highHalfBlock.png')
+        self.highHalfBlock_img = pygame.transform.scale(self.highHalfBlock_img, (TILE_SIZE, TILE_SIZE))
+
+        self.shortSpike_img = pygame.image.load('assets/shortSpike.png')
+        self.shortSpike_img = pygame.transform.scale(self.shortSpike_img, (TILE_SIZE, TILE_SIZE))
+
+        self.upsidedownSpike_img = pygame.image.load('assets/upsidedownSpike.png')
+        self.upsidedownSpike_img = pygame.transform.scale(self.upsidedownSpike_img, (TILE_SIZE, TILE_SIZE))
 
         self.ground_img = pygame.surface.Surface((TILE_SIZE, TILE_SIZE))
         self.ground_img.fill((0, 255, 0))
@@ -187,7 +203,21 @@ class Map:
         for y, layer in enumerate(self.game_map):
             for x, tile in enumerate(layer):
                 if not tile == 0:
-                    screen.blit(self.block_img, (x * TILE_SIZE - offset.x, y * TILE_SIZE - offset.y))
+                    # screen.blit(self.block_img, (x * TILE_SIZE - offset.x, y * TILE_SIZE - offset.y))
+                    if tile == 2:
+                        screen.blit(self.spike_img, (x * TILE_SIZE - offset.x, y * TILE_SIZE - offset.y))
+                    elif tile == 21 or tile == 22:
+                        screen.blit(self.groundSpikes_img, (x * TILE_SIZE - offset.x, y * TILE_SIZE - offset.y))
+                    elif tile == 7 or tile == 20:
+                        screen.blit(self.highHalfBlock_img, (x * TILE_SIZE - offset.x, y * TILE_SIZE - offset.y))
+                    elif tile == 3:
+                        screen.blit(self.shortSpike_img, (x * TILE_SIZE - offset.x, y * TILE_SIZE - offset.y))
+                    elif tile == 23:
+                        screen.blit(self.upsidedownSpike_img, (x * TILE_SIZE - offset.x, y * TILE_SIZE - offset.y))
+                    elif tile == 1 or not tile == 0:
+                        screen.blit(self.block_img, (x * TILE_SIZE - offset.x, y * TILE_SIZE - offset.y))
+
+
 
 
 def blitRotate(player, pos, originPos, angle):
@@ -281,7 +311,7 @@ def main():
 
     pygame.init()
     background = Background()
-    ground = Ground(0, HEIGHT + 256/2)
+    ground = Ground(0, HEIGHT + 256/2) # 256
     player = Player('assets/cube.png', screen.get_width()/3, ground.rect.top)
 
     ceiling = Ground(0, 0)
@@ -310,7 +340,7 @@ def main():
     vertical_velocity_old = 0
     angle_adjust_speed = 1
 
-    scroll = pygame.math.Vector2(0, ground.rect.top - 345)
+    scroll = pygame.math.Vector2(0, ground.rect.top - 345) # 345
 
     all_sprites = pygame.sprite.Group()
     all_sprites.add(player)
